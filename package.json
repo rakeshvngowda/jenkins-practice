@@ -1,0 +1,24 @@
+{
+  "name": "jenkins-practice",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "types": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rakeshvngowda/jenkins-practice.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/rakeshvngowda/jenkins-practice/issues"
+  },
+  "homepage": "https://github.com/rakeshvngowda/jenkins-practice#readme",
+  "dependencies": {
+    "express": "^5.1.0"
+  }
+}
