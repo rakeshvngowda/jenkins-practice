@@ -40,6 +40,7 @@ pipeline {
             steps {
                 sh """
                     docker build -t ${IMAGE}:latest .
+                    docker tag ${IMAGE}:latest ${REGISTRY}/${IMAGE}:latest
                 """
             }
         }
