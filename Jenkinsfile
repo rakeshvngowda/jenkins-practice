@@ -2,20 +2,26 @@ pipeline {
     agent any
 
     environment {
-        DOCKERHUB_CREDENTIALS = credentials('dockerhub')
-        IMAGE = 'rnarasimhaiah/jenkins-practice'
-        NAMESPACE = 'dev'
+        IMAGE = "jenkins-practice"
+        REGISTRY = "localhost:5000"
+        NAMESPACE = "dev"
     }
 
     stages {
 
+        stage('Cleanup Workspace') {
+            steps {
+                cleanWs()
+            }
+        }
+        
         stage('Checkout') {
             steps {
                 checkout scm
             }
         }
 
-        stage('Install & Test') {
+        stage('Install Dependencies') {
             agent {
                 docker {
                     image 'node:24-alpine'
@@ -24,45 +30,46 @@ pipeline {
                 }
             }
             steps {
-                sh 'npm ci'
-                sh 'NODE_OPTIONS=--experimental-vm-modules npm test'
+                sh 'node -v'
+                sh 'npm -v'
+                sh 'npm install'
             }
         }
 
-        stage('Build & Push Docker Image') {
+        stage('Build Docker Image') {
             steps {
                 sh """
-                    docker build -t ${IMAGE}:${BUILD_NUMBER} -t ${IMAGE}:latest .
-                    echo \$DOCKERHUB_CREDENTIALS_PSW | docker login -u \$DOCKERHUB_CREDENTIALS_USR --password-stdin
-                    docker push ${IMAGE}:${BUILD_NUMBER}
-                    docker push ${IMAGE}:latest
+                    eval \$(minikube -p minikube docker-env)
+                    docker build -t ${IMAGE}:latest .
                 """
+            }
+        }
+        
+        stage('Push Image to Local Registry') {
+            steps {
+                sh "docker push ${REGISTRY}/${IMAGE}:latest"
             }
         }
 
         stage('Deploy to Minikube') {
             steps {
-                sh """
-                    kubectl config use-context minikube
-                    kubectl create namespace ${NAMESPACE} || true
-                    kubectl set image deployment/jenkins-practice-app jenkins-practice-app=${IMAGE}:${BUILD_NUMBER} -n ${NAMESPACE} || \
-                    kubectl apply -f k8s/ -n ${NAMESPACE}
-                    kubectl rollout status deployment/jenkins-practice-app -n ${NAMESPACE} --timeout=180s
-                """
+                withCredentials([file(credentialsId: 'kubeconfig-file', variable: 'KUBECONFIG_PATH')]) {
+                    sh """
+                        export KUBECONFIG=$KUBECONFIG_PATH
+                        kubectl config use-context minikube
+                        kubectl apply -f k8s/deployment.yaml -n dev --validate=false
+                    """
+                }
             }
         }
     }
     
     post {
         success {
-            echo '✅ Pipeline Success!'
-            sh 'minikube service jenkins-practice-app -n ${NAMESPACE} --url'
+            echo "🚀 Deployment completed successfully!"
         }
         failure {
-            echo '❌ Pipeline Failed!'
-        }
-        always {
-            sh 'docker logout'
+            echo "❌ Build or Deployment Failed!"
         }
     }
 }
