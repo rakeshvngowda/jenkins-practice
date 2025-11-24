@@ -1,78 +1,63 @@
 pipeline {
     agent any
-    
+
     environment {
-        DOCKER_IMAGE = "jenkins-practice-app"
-        DOCKER_TAG = "${BUILD_NUMBER}"
-        MINIKUBE_IP = sh(script: 'minikube ip', returnStdout: true).trim()
-        KUBECONFIG = "${HOME}/.kube/config"
+        IMAGE = "jenkins-practice"
+        REGISTRY = "localhost:5000"
+        NAMESPACE = "dev"
     }
-    
+
     stages {
+
+        stage('Cleanup Workspace') {
+            steps {
+                cleanWs()
+            }
+        }
+        
         stage('Checkout') {
             steps {
-                echo 'Checking out code...'
                 checkout scm
             }
         }
-        
+
+        stage('Install Dependencies') {
+            agent {
+                docker {
+                    image 'node:24-alpine'
+                    args '-u root:root'
+                    reuseNode true
+                }
+            }
+            steps {
+                sh 'node -v'
+                sh 'npm -v'
+                sh 'npm install'
+            }
+        }
+
         stage('Build Docker Image') {
             steps {
-                script {
-                    echo "Building Docker image: ${DOCKER_IMAGE}:${DOCKER_TAG}"
-                    sh """
-                        eval \$(minikube docker-env)
-                        docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} .
-                        docker tag ${DOCKER_IMAGE}:${DOCKER_TAG} ${DOCKER_IMAGE}:latest
-                    """
-                }
+                sh """
+                    eval \$(minikube -p minikube docker-env)
+                    docker build -t ${IMAGE}:latest .
+                """
             }
         }
         
-        stage('Test') {
+        stage('Push Image to Local Registry') {
             steps {
-                echo 'Running tests...'
-                sh '''
-                    echo "Add your test commands here"
-                    # npm test or python -m pytest, etc.
-                '''
+                sh "docker push ${REGISTRY}/${IMAGE}:latest"
             }
         }
-        
-        stage('Push to Minikube Registry') {
+
+        stage('Deploy to Minikube') {
             steps {
-                script {
-                    echo "Image available in Minikube Docker daemon"
+                withCredentials([file(credentialsId: 'kubeconfig-file', variable: 'KUBECONFIG_PATH')]) {
                     sh """
-                        eval \$(minikube docker-env)
-                        docker images | grep ${DOCKER_IMAGE}
-                    """
-                }
-            }
-        }
-        
-        stage('Deploy to Kubernetes') {
-            steps {
-                script {
-                    echo 'Deploying to Minikube...'
-                    sh """
+                        export KUBECONFIG=$KUBECONFIG_PATH
                         kubectl config use-context minikube
-                        kubectl apply -f k8s/deployment.yaml
-                        kubectl apply -f k8s/service.yaml
-                        kubectl set image deployment/jenkins-practice-app jenkins-practice-app=${DOCKER_IMAGE}:${DOCKER_TAG} --record
-                        kubectl rollout status deployment/jenkins-practice-app
-                    """
-                }
-            }
-        }
-        
-        stage('Verify Deployment') {
-            steps {
-                script {
-                    echo 'Verifying deployment...'
-                    sh """
-                        kubectl get pods -l app=jenkins-practice-app
-                        kubectl get svc jenkins-practice-app
+                        kubectl apply -f k8s/deployment.yaml -n dev --validate=false
                     """
                 }
             }
@@ -81,19 +66,10 @@ pipeline {
     
     post {
         success {
-            echo 'Pipeline succeeded!'
-            sh """
-                echo "Application URL: http://\$(minikube ip):\$(kubectl get svc jenkins-practice-app -o jsonpath='{.spec.ports[0].nodePort}')"
-            """
+            echo "🚀 Deployment completed successfully!"
         }
         failure {
-            echo 'Pipeline failed!'
-        }
-        always {
-            echo 'Cleaning up...'
-            sh '''
-                docker image prune -f
-            '''
+            echo "❌ Build or Deployment Failed!"
         }
     }
 }
