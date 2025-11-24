@@ -41,6 +41,7 @@ pipeline {
                 sh """
                     eval \$(minikube -p minikube docker-env)
                     docker build -t ${IMAGE}:latest .
+                    docker tag ${IMAGE}:latest ${REGISTRY}/${IMAGE}:latest
                 """
             }
         }
