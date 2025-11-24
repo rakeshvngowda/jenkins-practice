@@ -1,22 +1,50 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: jenkins-practice 
-  namespace: dev
+  name: jenkins-practice-app
   labels:
-    app: jenkins-practice
+    app: jenkins-practice-app
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: jenkins-practice
+      app: jenkins-practice-app
   template:
     metadata:
       labels:
-        app: jenkins-practice
+        app: jenkins-practice-app
     spec:
       containers:
-      - name: jenkins-practice
-        image: jenkins-practice:latest
+      - name: jenkins-practice-app
+        image: rnarasimhaiah/jenkins-practice:latest
+        imagePullPolicy: Always
         ports:
         - containerPort: 3000
+          name: http
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: PORT
+          value: "3000"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+      restartPolicy: Always
