@@ -58,6 +58,7 @@ pipeline {
                         export KUBECONFIG=$KUBECONFIG_PATH
                         kubectl config use-context minikube
                         kubectl apply -f k8s/deployment.yaml -n dev --validate=false
+                        kubectl apply -f k8s/service.yaml -n dev --validate=false
                     """
                 }
             }
